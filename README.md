@@ -1,6 +1,6 @@
 # Bony Fish Phylogeny in anvi'o
 
-In this repo we provide the files needed to **visualize and explore** the bony fish phylogeny from [Betancur-R et. al (2017)](https://link.springer.com/article/10.1186/s12862-017-0958-3){target} in [anvi'o](http://merenlab.org/software/anvio/).
+In this repo we provide the files needed to **visualize and explore** the bony fish phylogeny from [Betancur-R et. al (2017)](https://link.springer.com/article/10.1186/s12862-017-0958-3){target="_blank"} in [anvi'o](http://merenlab.org/software/anvio/).
 
 **The bony fish phylogeny** contains 1990 species encompassing 72 orders and 410 families. At the time of publication this represented roughly 80% of recognized bony fish families. The study uses molecular and genomic data to base classification on inferred phylogenies. From the abstract the author state:
 
@@ -25,9 +25,8 @@ Then run this command...
 
  **Method 2**
 
-The other thing you can do is use our database (`profile.db`) as a starting point. The principle is the same as the other method except that here we have done some beautification already. This database contains the information in the `additonal_data.txt` and the `fish_tree.tre`. It also contains an additional tree representation where we collapsed leaves by Family. To visualize this tree run this command:
+The other thing you can do is use our database (`profile.db`) as a starting point. The principle is the same as the other method except that here we have done some beautification already. This database contains the information in the `additonal_data.txt` and the `fish_tree.tre`. It also contains an additional tree representation where we collapsed leaves by Family.
 
-`anvi-interactive -p profile.db  --manual`
-
+To use this database run this command:
 
 `anvi-interactive -p profile.db  --manual`
