@@ -11,10 +11,23 @@ The authors provide many files but for our purposes we used two files from the [
  **Anvi'o** "*is an open-source, community-driven analysis and visualization platform for ‘omics data.*" One of the best aspects of anvi'o is it's interactive interface, which is amazing for data exploration---especially phylogenetic trees. Anvi'o is really easy to install using conda in the [Miniconda](https://docs.conda.io/en/latest/miniconda.html) environment. See the installation instructions [here](http://merenlab.org/2016/06/26/installation-v2/).
 
 
-There are two ways you can visualize Betancur-R tree in anvi'o using the files provided
+There are **two ways** you can visualize Betancur-R tree in anvi'o using the files we provided here. Both assume you have anvi'o installed.
+
+**Method 1**
+
+Start anvi'o and generate a *ad hoc* database using the `fish_tree.tre` and `additonal_data.txt` files. The tree file is simply our modified version of Additional file 2 and other file contains the taxonomic data for each species from Additional file 4. The only other thing you need is a dummy database file (note: this file **does not** need to exist the first time you run the command).  
+
+Then run this command...
+
+`anvi-interactive -p dummy.db --tree fish_tree.tre  --additional-layers additonal_data.txt --manual`
+
+ If everything works a new interface will open in your browser window. Hit the `Draw` button and the tree will render. At this point you can modify the look of the tree, export an SVG image, etc.
+
+ **Method 2**
+
+The other thing you can do is use our database (`profile.db`) as a starting point. The principle is the same as the other method except that here we have done some beautification already. This database contains the information in the `additonal_data.txt` and the `fish_tree.tre`. It also contains an additional tree representation where we collapsed leaves by Family. To visualize this tree run this command:
+
+`anvi-interactive -p profile.db  --manual`
 
 
-
-Anyway, we used the original tree from the paper to choose an out group for our analysis (Gerreidae) and for the fun of it decided to make our own representation of the Betancur-R et. al., tree. To construct the tree above we first downloaded the newick file from the paper’s supplementary material (download link), parsed out the Family data from the tree file (included in the name of each leaf), and finally visualized the tree in anvi’o. Within the anvi’o interface we collapsed any Family represented by two or more species. The size of each triangle is proportional to the number of species in that family while the colors are somewhat arbitrary. Originally we thought it would be cool to color leaves by the Order but that was too complicated. So the colors are really just for looks.
-
-The image above is just half the tree. You can download a full SVG version of our tree by clicking the image below. In the future we would like to identify which fish families have been the subject of microbial investigations and use the phylogenetic framework to identify gaps in knowledge and patterns of associations. The families we studied in this project are in the lower left, marked by asterisks.
+`anvi-interactive -p profile.db  --manual`
