@@ -12,12 +12,22 @@ There are two options for visualizations. You can *either* visualize the Betancu
 
 ## Files in this repo
 
-1) `not_collapsed_profile.db` Anvi'o profile data base containing the FishBase metadata and Betancur-R modified tree.
-2) `not_collapsed_fish_tree.tre` The modified  Betancur-R tree.
-3) `collapsed_profile.db` Anvi'o profile data base containing the collapsed (by Family) Betancur-R modified tree.
-4) `collapsed_fish_tree.tre` The collapsed and modified  Betancur-R tree.
-5) `12862_2017_958_MOESM2_ESM.tre` The original Betancur-R tree, not changed or altered.
-6) `fish_metadata_complete.txt` All tree metadata, containing data from the Betancur-R **Additional file 4** plus the data scrapped from FishBase.
+1) `12862_2017_958_MOESM2_ESM.tre` The original Betancur-R tree, not changed or altered.
+
+2) `fish_metadata_complete.txt` All tree metadata, containing data from the Betancur-R **Additional file 4** plus the data scrapped from FishBase.
+
+3) `tree_not_collapsed` Directory
+
+- `not_collapsed_profile.db` Anvi'o profile data base.  
+- `not_collapsed_fish_tree.tre` The modified  Betancur-R tree.  
+- `data.txt` metadata scraped from FishBase for visualization.
+- `default.json` anvi'o states file.
+
+4) `tree_collapsed` Directory
+
+- `collapsed_profile.db` Anvi'o profile data base for the collapsed (by Family) Betancur-R modified tree.
+- `collapsed_fish_tree.tre` The collapsed and modified  Betancur-R tree.
+- `data.txt` a minimal metadata set for the collapsed tree.
 
 For instructions on how these files were created and all of the R code, please see the [project page](https://istmobiome.rbind.io/project/betancur-r-fish-tree/).
 
@@ -34,13 +44,19 @@ Once you have anvi'o installed and the data in hand, visualization is pretty eas
 To visualize the tree with the metadata run this command. 
 
 ```
-anvi-interactive --profile-db not_collapsed_profile.db --manual
+anvi-interactive --profile-db not_collapsed_profile.db \
+                 --view-data data.txt \
+                 --tree not_collapsed_fish_tree.tre \
+                 --manual
 ```
 
 Or, if you would rather use the use the tree collapsed by family, run this command. 
 
 ```
-anvi-interactive  --profile-db collapsed_profile.db --manual
+anvi-interactive --profile-db collapsed_profile.db \
+                 --view-data data.txt \
+                 --tree collapsed_fish_tree.tre \
+                 --manual
 ```
 
 And that's it for now. 
