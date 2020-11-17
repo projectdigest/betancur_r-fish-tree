@@ -1,0 +1,488 @@
+---
+title: "Betancur-R bony Interactive Fish Phylogeny"
+output: html_notebook
+---
+
+
+```{r}
+library(webdriver)
+library(rvest) 
+library(magrittr) #for pipes
+library(dplyr) #for pull function
+library(rvest) #get html nodes
+library(xml2) #pull html data
+library(selectr) #for xpath element
+library(tibble)
+library(purrr) #for map functions
+library(httr)
+library(tidyverse)
+```
+
+## Scrape Species Pages
+
+```{r}
+rm(list = ls())
+base_url <- "https://www.fishbase.se/summary/"
+fish <- scan('fish_list.txt', what = "character", sep = "\n")
+rm(list = ls(pattern = "sample_data"))
+sample_data <- data.frame()
+for (name in fish) {
+     tmp_link <- paste(base_url, name, ".html", sep = "")
+     tmp_entry <- cbind(name, tmp_link)
+     sample_data <- rbind(sample_data, tmp_entry)
+     rm(list = ls(pattern = "tmp_"))
+
+}
+sample_data <- sample_data %>% dplyr::rename("link" = "tmp_link")
+```
+
+```{r}
+all_links <- sample_data$link
+all_names <- sample_data$name
+```
+
+```{r}
+pjs_instance <- run_phantomjs()
+pjs_session <- Session$new(port = pjs_instance$port)
+```
+
+
+```{r}
+scrape_fish_base <- function(url) {
+  
+  pjs_session$go(url)
+  rendered_source <- pjs_session$getSource()
+  html_document <- read_html(rendered_source)
+
+  sci_xpath <- '//*[@id="ss-sciname"]/h1'
+  sci_text <- html_document %>%
+    html_node(xpath = sci_xpath) %>%
+    html_text(trim = T)
+  
+  comm_xpath <- '//*[@id="ss-sciname"]/span'
+  comm_text <- html_document %>%
+    html_node(xpath = comm_xpath) %>%
+    html_text(trim = T)
+  
+  env_xpath <- '//*[@id="ss-main"]/div[2]/span'
+  evn_text <- html_document %>%
+    html_node(xpath = env_xpath) %>%
+    html_text(trim = T)
+  
+  threat_path <- '#ss-main > div.rlalign.sonehalf > div > span'
+  threat_text <- html_document %>%
+    html_node(threat_path) %>%
+    html_text(trim = T)
+
+  uses_xpath1 <- '//*[@id="ss-main"]/div[13]'
+  uses_text1 <- html_document %>%
+    html_node(xpath = uses_xpath1) %>%
+    html_text(trim = T)
+
+  uses_xpath2 <- '//*[@id="ss-main"]/div[12]'
+  uses_text2 <- html_document %>%
+    html_node(xpath = uses_xpath2) %>%
+    html_text(trim = T)
+
+  iucn_xpath <- '#ss-main > div.sleft.sonehalf > div > span'
+  iucn_text <- html_document %>%
+    html_node(iucn_xpath) %>%
+    html_text(trim = T)
+
+  phys_xpath <- '//*[@id="ss-main"]/div[4]/span'
+  phys_text <- html_document %>%
+    html_node(xpath = phys_xpath) %>%
+    html_text(trim = T)
+
+  article <- data.frame(
+    url = url,
+    sci_name = sci_text,
+    common_name = comm_text,
+    habitat = evn_text, 
+    threat_to_humans = threat_text,
+    human_uses1 = uses_text1,
+    human_uses2 = uses_text2,
+    IUCN_red_list_status = iucn_text,
+    physical_characters = phys_text
+  )
+  
+  return(article)
+}
+```
+
+```{r}
+all_fish_data <- data.frame()
+for (i in 1:length(all_links)) {
+  cat("Downloading", i, "of", length(all_links), "URL:", all_links[i], "\n")
+  article <- scrape_fish_base(all_links[i])
+  # Append current article data.frame to the data.frame of all articles
+  all_fish_data <- rbind(all_fish_data, article)
+}
+```
+
+```{r}
+saveRDS(all_fish_data, "rdata/1_scrape_fish_base.rds")
+#save.image("rdata/1_scrape_fish_base.rdata")
+```
+
+```{r}
+all_fish_data <- readRDS("rdata/1_scrape_fish_base.rds")
+tmp_fish_data <- all_fish_data
+
+tmp_fish_data$human_uses2  <- gsub(x = tmp_fish_data$human_uses2, 
+                                   pattern = "Threat to humans.*", 
+                                   replacement = NA)  
+tmp_fish_data$human_uses1  <- gsub(x = tmp_fish_data$human_uses1, 
+                                   pattern = "FAO.*", 
+                                   replacement = NA)  
+tmp_fish_data <- tmp_fish_data %>% tidyr::unite(human_uses, 
+                                                c(human_uses1, human_uses2), 
+                                                remove = TRUE, na.rm = TRUE)
+tmp_fish_data$human_uses[tmp_fish_data$human_uses==""] <- NA
+```
+
+```{r}
+tmp_fish_data$IUCN_red_list_status <- stringr::str_replace(tmp_fish_data$IUCN_red_list_status, 
+                                                           "; Date assessed.*", "")
+tmp_fish_data <- tmp_fish_data %>% tidyr::separate(IUCN_red_list_status, 
+                                                   into = c("IUCN", "IUCN_abr"), 
+                                                   sep = "[(]",  remove = TRUE)
+tmp_fish_data$IUCN_abr <- stringr::str_replace(tmp_fish_data$IUCN_abr, "[)].*", "")
+```
+
+```{r}
+## threat_to_humans
+tmp_fish_data <- tmp_fish_data %>% tidyr::separate(threat_to_humans, 
+                                                   into = c("threat_to_humans"), 
+                                                   sep = "[(]",  remove = TRUE)
+```
+
+```{r}
+## habitat FIX MANUALLY
+write.table(tmp_fish_data, "tables/2_tmp_fish_data_fixed_to_manual.txt", sep = "\t", quote = FALSE) 
+saveRDS(tmp_fish_data, "rdata/2_scrape_fish_base_fixed_to_manual.rds")
+```
+
+
+## Scrape IDs & Stock Codes
+
+```{r}
+rm(list = ls())
+base_url <- "https://www.fishbase.se/summary/"
+fish <- scan('fish_list.txt', what = "character", sep = "\n")
+rm(list = ls(pattern = "sample_data"))
+sample_data <- data.frame()
+for (name in fish) {
+     tmp_link <- paste(base_url, name, ".html", sep = "")
+     tmp_entry <- cbind(name, tmp_link)
+     sample_data <- rbind(sample_data, tmp_entry)
+     rm(list = ls(pattern = "tmp_"))
+
+}
+sample_data <- sample_data %>% dplyr::rename("link" = "tmp_link")
+```
+
+```{r}
+all_links <- sample_data$link
+all_names <- sample_data$name
+```
+
+```{r}
+pjs_instance <- run_phantomjs()
+pjs_session <- Session$new(port = pjs_instance$port)
+```
+
+```{r}
+scrape_fish_code_urls <- function(url) {
+  
+  pjs_session$go(url)
+  rendered_source <- pjs_session$getSource()
+  html_document <- read_html(rendered_source)
+
+  codes_xpath <- '//*[@id="ss-main"]/h1[3]/span/span[2]/a'
+  codes_text <- html_document %>%
+    html_node(xpath = codes_xpath) %>%
+    html_attr(name = "href", default = "https://www.fishbase.se/Country/FaoAreaList.php?ID=6320&GenusName=Herichthys&SpeciesName=minckleyi&fc=349&StockCode=6633&Scientific=Herichthys+minckleyi")
+
+  fish_codes <- data.frame(
+    url = url,
+    codes = codes_text
+  )
+  
+  return(fish_codes)
+}
+```
+
+```{r}
+all_fish_codes <- data.frame()
+for (i in 1:length(all_links)) {
+  cat("Downloading", i, "of", length(all_links), "URL:", all_links[i], "\n")
+  fish_codes <- scrape_fish_code_urls(all_links[i])
+  # Append current article data.frame to the data.frame of all articles
+  all_fish_codes <- rbind(all_fish_codes, fish_codes)
+}
+```
+
+```
+Downloading 1 of 1992 URL: https://www.fishbase.se/summary/Leucoraja-erinacea.html 
+Downloading 2 of 1992 URL: https://www.fishbase.se/summary/Callorhinchus-milii.html 
+Downloading 3 of 1992 URL: https://www.fishbase.se/summary/Latimeria-chalumnae.html 
+Downloading 4 of 1992 URL: https://www.fishbase.se/summary/Neoceratodus-forsteri.html 
+Downloading 5 of 1992 URL: https://www.fishbase.se/summary/Protopterus-aethiopicus.html
+```
+
+```{r}
+saveRDS(all_fish_codes, "rdata/3_scrape_fish_code_urls.rds")
+```
+
+
+```{r}
+all_fish_codes$codes <- stringr::str_replace(all_fish_codes$codes, "\\.\\./Country/FaoAreaList.php", "https://www.fishbase.se/Country/FaoAreaList.php")
+
+all_fish_codes$url <- stringr::str_replace(all_fish_codes$url, "https://www.fishbase.se/summary/", "")
+all_fish_codes$url <- stringr::str_replace(all_fish_codes$url, ".html", "") 
+all_fish_codes <- all_fish_codes %>% dplyr::rename("name" = "url")
+all_fish_codes <- all_fish_codes %>% dplyr::rename("link" = "codes")
+saveRDS(all_fish_codes, "rdata/4_scrape_fish_code_urls_fixed.rds")
+```
+
+```{r}
+gdata::keep(all_fish_codes, sure = TRUE)
+```
+
+## Scrape Distribution Tables
+
+```{r}
+all_links <- all_fish_codes$link
+all_names <- all_fish_codes$name
+```
+
+```{r}
+pjs_instance <- run_phantomjs()
+pjs_session <- Session$new(port = pjs_instance$port)
+```
+
+
+```{r}
+scrape_fish_dist_tabs <- function(url) {
+  
+  pjs_session$go(url)
+  rendered_source <- pjs_session$getSource()
+  html_document <- read_html(rendered_source)
+  dist_xpath <- '//*[@id="dataTable"]'
+  dist_text <- html_document %>%
+    html_node(xpath = dist_xpath) %>%
+    html_table(header = FALSE, fill = TRUE, trim = TRUE)
+# If header = TRUE job will fail with empty tables, makes downstream more of a pain  
+  fish_dist <- data.frame(
+    url = url,
+    dist = dist_text
+  )
+  
+  return(fish_dist)
+}
+```
+
+
+```{r}
+all_fish_dist <- data.frame()
+for (i in 1:length(all_links)) {
+  cat("Downloading", i, "of", length(all_links), "URL:", all_links[i], "\n")
+  fish_dist <- scrape_fish_dist_tabs(all_links[i])
+  # Append current article data.frame to the data.frame of all articles
+  all_fish_dist <- rbind(all_fish_dist, fish_dist)
+}
+saveRDS(all_fish_dist, "rdata/5_scrape_fish_dist_tabs.rds")
+```
+
+
+```{r}
+all_fish_dist <- readRDS("rdata/5_scrape_fish_dist_tabs.rds")
+all_fish_dist$dist.X3 <- NULL
+all_fish_dist <- all_fish_dist[all_fish_dist$dist.X1 != "FAO Area", ]
+all_fish_dist <- dplyr::distinct(all_fish_dist)
+
+all_fish_dist <- all_fish_dist %>% dplyr::rename("dist.FAO.Area" = "dist.X1")
+all_fish_dist <- all_fish_dist %>% dplyr::rename("dist.Status" = "dist.X2")
+```
+
+```{r}
+all_fish_dist_agg <- all_fish_dist %>%
+                     group_by(url) %>%
+                 #mutate(row = row_number()) %>%
+                     tidyr::pivot_wider(names_from = dist.FAO.Area, 
+                                    values_from = c("dist.FAO.Area", 
+                                                    "dist.Status"))
+                 #select(-row) %>%
+                 #ungroup()
+fao_area <- all_fish_dist_agg %>% 
+                  ungroup() %>%
+                  dplyr::select(matches("^dist.FAO.Area_.*")) %>% 
+                  tidyr::unite("fao_area", na.rm = TRUE, 
+                               remove = TRUE, sep = "; ")
+
+fao_status <- all_fish_dist_agg %>% 
+                  ungroup() %>%
+                  dplyr::select(matches("^dist.Status_.*")) %>%
+                  tidyr::unite("fao_status", na.rm = TRUE, remove = TRUE, sep = "; ") %>%
+                  tidyr::separate(fao_status, "fao_status")
+
+all_fish_dist_final <- cbind(all_fish_dist_agg$url, fao_area, fao_status)
+
+write.table(all_fish_dist, "tables/temp3.txt", sep = "\t", quote = FALSE) 
+unique(all_fish_dist$dist.FAO.Area)
+```
+
+```{r}
+readRDS("rdata/6_scrape_fish_dist_tabs_final.rds")
+```
+
+```{r}
+rm(list = ls())
+tree_names_dashes <- read.table("fish_list.txt", row.names = NULL)
+scrape_fish_base <- read.table("tables/scrape_fish_base_final.txt", 
+                               header = TRUE, sep = "\t", 
+                               row.names = NULL, stringsAsFactors = FALSE)
+scrape_dist <- readRDS("rdata/6_scrape_fish_dist_tabs_final.rds")
+```
+
+```{r}
+tree_names_dashes <- tree_names_dashes %>% dplyr::rename("id" = 1)
+scrape_dist <- scrape_dist %>% dplyr::rename("foa_url" = 1) %>%
+                               dplyr::mutate(id = foa_url, .before = foa_url)
+
+scrape_dist$id  <- gsub(x = scrape_dist$id, 
+                        pattern = "https://www.fishbase.se/Country/FaoAreaList.php\\?ID=.*Scientific=", 
+                        replacement = "")
+scrape_dist$id  <- gsub(x = scrape_dist$id, pattern = "\\+", replacement = "-")  
+ 
+
+scrape_fish_base <- scrape_fish_base %>% dplyr::rename("fb_url" = 1) %>%
+                               dplyr::mutate(id = fb_url, .before = fb_url)
+scrape_fish_base$id  <- gsub(x = scrape_fish_base$id, 
+                             pattern = "https://www.fishbase.se/summary/|.html", 
+                             replacement = "")  
+
+tree_names_dashes[duplicated(tree_names_dashes[,1:1]),]
+scrape_dist[duplicated(scrape_dist[,1:1]),]
+scrape_fish_base[duplicated(scrape_fish_base[,1:1]),]
+```
+
+```{r}
+scrape_fish_base <- dplyr::distinct(scrape_fish_base)
+
+fish_base_merge <- dplyr::left_join(tree_names_dashes,  scrape_fish_base) %>%
+                   dplyr::left_join(., scrape_dist, by = "id")
+fish_base_merge[duplicated(fish_base_merge[,1:1]),]
+
+saveRDS(fish_base_merge, "rdata/7_fish_base_merge_raw.rds")
+```
+
+
+```{r}
+additional_data <- read.table("tables/additional_file_4_modified.txt", 
+                               header = TRUE, sep = "\t", 
+                               row.names = NULL, stringsAsFactors = FALSE)
+fish_base_merge <- fish_base_merge %>% dplyr::rename("FishBase_ID" = "id")
+
+fish_metadata <- dplyr::left_join(additional_data, fish_base_merge, by = "FishBase_ID")
+
+fish_metadata[duplicated(fish_metadata[,1:1]),]
+fish_metadata <- dplyr::distinct(fish_metadata)
+fish_metadata[duplicated(fish_metadata[,1:1]),]
+fish_metadata[fish_metadata==""] <- NA
+saveRDS(fish_metadata, "rdata/8_fish_metadata.rds")
+```
+
+```{r}
+fish_metadata <- readRDS("rdata/8_fish_metadata.rds")
+colnames(fish_metadata)
+fish_metadata <- fish_metadata %>% dplyr::rename("Group" = "Betancur_R_ID")
+write.table(fish_metadata, "fish_metadata_complete.txt", sep = "\t", quote = FALSE, row.names = FALSE) 
+
+fish_metadata <- fish_metadata[, -c(3:27)]
+fish_metadata[, 4] <- list(NULL)
+fish_metadata[, 2:5] <- list(NULL)
+
+fish_metadata$max_reported_age  <- gsub(x = fish_metadata$max_reported_age, 
+                                   pattern = " years", 
+                                   replacement = "")  
+
+write.table(fish_metadata, "fish_metadata.txt", sep = "\t", quote = FALSE, row.names = FALSE) 
+```
+
+
+
+
+
+```{r}
+#rm(list = ls())
+base_url <- "https://www.fishbase.se/summary/"
+fish <- scan('fish_list.txt', what = "character", sep = "\n")
+rm(list = ls(pattern = "sample_data"))
+sample_data <- data.frame()
+for (name in fish) {
+     tmp_link <- paste(base_url, name, ".html", sep = "")
+     tmp_entry <- cbind(name, tmp_link)
+     sample_data <- rbind(sample_data, tmp_entry)
+     rm(list = ls(pattern = "tmp_"))
+
+}
+sample_data <- sample_data %>% dplyr::rename("link" = "tmp_link")
+```
+
+```{r}
+all_links <- sample_data$link
+all_names <- sample_data$name
+```
+
+```{r}
+pjs_instance <- run_phantomjs()
+pjs_session <- Session$new(port = pjs_instance$port)
+```
+
+
+```{r}
+scrape_dist <- function(url) {
+  
+  pjs_session$go(url)
+  rendered_source <- pjs_session$getSource()
+  html_document <- read_html(rendered_source)
+
+  dist_xpath <- '//*[@id="ss-main"]/div[3]/span'
+  dist_text <- html_document %>%
+    html_node(xpath = dist_xpath) %>%
+    html_text(trim = T)
+
+  article <- data.frame(
+    url = url,
+    distribution = dist_text
+  )
+  
+  return(article)
+}
+```
+
+```{r}
+dist_data <- data.frame()
+for (i in 1:length(all_links)) {
+  cat("Downloading", i, "of", length(all_links), "URL:", all_links[i], "\n")
+  article <- scrape_dist(all_links[i])
+  # Append current article data.frame to the data.frame of all articles
+  dist_data <- rbind(dist_data, article)
+}
+```
+
+```{r}
+saveRDS(dist_data, "rdata/9_scrape_fish_base_just_dist.rds")
+write.table(dist_data, "tables/scrape_fish_base_just_dist.txt", sep = "\t", quote = FALSE) 
+```
+
+
+
+
+
+
+
+
+

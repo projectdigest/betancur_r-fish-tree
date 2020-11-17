@@ -29,6 +29,8 @@ There are two options for visualizations. You can *either* visualize the Betancu
 - `collapsed_fish_tree.tre` The collapsed and modified  Betancur-R tree.
 - `data.txt` a minimal metadata set for the collapsed tree.
 
+5) `NOTEBOOK` Directory. This directory contains my R Markdown notebook and `rds` files from each stage of the workflow. **WARNING** This is a messy notebook with very little explaination. You are encouraged to visit the project page linked below for detailed instructions. I am putting this here for archival purposes only. 
+
 For instructions on how these files were created and all of the R code, please see the [project page](https://istmobiome.rbind.io/project/betancur-r-fish-tree/).
 
 ## Changes 
